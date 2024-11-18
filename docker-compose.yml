@@ -1,7 +1,60 @@
+version: '3.8'
+
 services:
-  structurizr:
-    image: structurizr/lite
+  patient-service:
+    build: ./services/patientservice
     ports:
-      - "8080:8080"
+      - "8000:8000"
+    environment:
+      - DB_HOST=database
+      - DB_USER=root
+      - DB_PASSWORD=secret
+      - DB_NAME=bloodpressure
+      - REDIS_URL=redis://cache:6379
+    depends_on:
+      database:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+
+  measurement-service:
+    build: ./services/measurementservice
+    ports:
+      - "8001:8000"
+    environment:
+      - DB_HOST=database
+      - DB_USER=root
+      - DB_PASSWORD=secret
+      - DB_NAME=bloodpressure
+      - REDIS_URL=redis://cache:6379
+    depends_on:
+      database:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+
+  database:
+    build: ./services/database
+    environment:
+      - MYSQL_ROOT_PASSWORD=secret
+      - MYSQL_DATABASE=bloodpressure
     volumes:
-      - ./docs:/usr/local/structurizr
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+
+  cache:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - cache-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+
+volumes:
+  db-data:
+  cache-data:
